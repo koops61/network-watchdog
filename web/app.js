@@ -20,6 +20,9 @@ const refreshLogsBtn = document.getElementById('refreshLogsBtn');
 const toastAlert = document.getElementById('toastAlert');
 const toastTitle = document.getElementById('toastTitle');
 const toastMessage = document.getElementById('toastMessage');
+const versionBadge = document.getElementById('versionBadge');
+const updateLinkBtn = document.getElementById('updateLinkBtn');
+const updateLinkText = document.getElementById('updateLinkText');
 
 function showToast(title, message, isError = false) {
   toastTitle.textContent = title;
@@ -36,6 +39,20 @@ async function updateStatus() {
     const res = await fetch('/api/status?t=' + Date.now());
     if (!res.ok) throw new Error('Status unavailable');
     const data = await res.json();
+
+    // Version & Updates
+    if (data.app_version && versionBadge) {
+      versionBadge.textContent = `v${data.app_version}`;
+    }
+    if (data.update_available && updateLinkBtn) {
+      updateLinkBtn.classList.remove('hidden');
+      if (data.release_url) updateLinkBtn.href = data.release_url;
+      if (data.latest_version && updateLinkText) {
+        updateLinkText.textContent = `Mise à jour ${data.latest_version}`;
+      }
+    } else if (updateLinkBtn) {
+      updateLinkBtn.classList.add('hidden');
+    }
 
     // Adapter
     activeAdapterName.textContent = data.active_adapter || 'Détecté';

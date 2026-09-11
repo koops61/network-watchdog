@@ -26,12 +26,21 @@
           <img src="icon.png" alt="Network Watchdog Icon" class="brand-icon-img">
         </div>
         <div class="brand-text">
-          <div class="brand-title">NETWORK WATCHDOG</div>
+          <div class="brand-title">
+            NETWORK WATCHDOG
+            <span id="versionBadge" class="version-tag" title="Version actuelle - Cliquez pour vérifier les mises à jour">v1.0.1</span>
+          </div>
           <div class="brand-sub">Moniteur Réseau Haute Précision & Auto-Réparation</div>
         </div>
       </div>
 
       <div class="header-controls">
+        <button id="updateAlertBtn" class="btn-update-alert hidden" title="Une nouvelle version est disponible ! Cliquez pour la télécharger">
+          <span class="update-pulse"></span>
+          <span class="update-sparkle">✨</span>
+          <span id="updateAlertText">Mise à jour disponible</span>
+        </button>
+
         <div id="globalStatusBadge" class="status-pill status-loading">
           <span class="pill-dot"></span>
           <span id="globalStatusText">Initialisation...</span>
@@ -268,6 +277,48 @@
         </div>
       </div>
     </main>
+
+    <!-- Modal Mise à jour -->
+    <div id="updateModal" class="modal-backdrop hidden">
+      <div class="modal-card glass-panel">
+        <div class="modal-header">
+          <div class="modal-icon-badge">🚀</div>
+          <div class="modal-title-group">
+            <h3 class="modal-title">Nouvelle Version Disponible</h3>
+            <p class="modal-subtitle">Une mise à jour de Network Watchdog a été publiée sur GitHub.</p>
+          </div>
+          <button id="closeUpdateModalBtn" class="modal-close-btn" title="Fermer">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="version-compare-row">
+            <div class="ver-box current">
+              <span class="ver-lbl">Version actuelle</span>
+              <span id="modalCurrentVer" class="ver-val">v1.0.1</span>
+            </div>
+            <div class="ver-arrow">➔</div>
+            <div class="ver-box latest">
+              <span class="ver-lbl">Nouvelle version</span>
+              <span id="modalLatestVer" class="ver-val">v1.0.2</span>
+            </div>
+          </div>
+          <div id="modalReleaseNotesSection" class="release-notes-box">
+            <div class="notes-title">Détails de la publication :</div>
+            <div id="modalReleaseNotes" class="notes-body">Chargement des notes de version...</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="modalLaterBtn" class="btn btn-secondary">Plus tard</button>
+          <button id="modalDownloadBtn" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>Ouvrir la Release GitHub</span>
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Notification Toast Popup -->
     <div id="toast" class="toast-card hidden">

@@ -28,12 +28,20 @@
           </svg>
         </div>
         <div class="brand-info">
-          <h1>Network Watchdog</h1>
+          <div class="title-row">
+            <h1>Network Watchdog</h1>
+            <span id="versionBadge" class="version-tag" title="Version de l'application">v1.0.1</span>
+          </div>
           <p class="subtitle">Surveillance & Auto-Réparation Réseau Windows</p>
         </div>
       </div>
 
       <div class="header-actions">
+        <a id="updateLinkBtn" class="update-link-btn hidden" href="https://github.com/koops61/network-watchdog/releases" target="_blank" title="Une nouvelle version est disponible sur GitHub">
+          <span class="update-sparkle">✨</span>
+          <span id="updateLinkText">Mise à jour dispo</span>
+        </a>
+
         <div id="connectionBadge" class="status-badge status-loading">
           <span class="status-dot"></span>
           <span id="badgeText">Connexion...</span>

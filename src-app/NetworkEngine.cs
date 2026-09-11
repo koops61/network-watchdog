@@ -53,6 +53,14 @@ namespace NetworkWatchdog
         public bool AntiBootloopSafe { get; set; } = true;
         public string AntiBootloopMessage { get; set; } = "Protection active (20 min)";
 
+        // Version & Mises à jour
+        public string AppVersion { get; set; } = "1.0.1";
+        public bool UpdateAvailable { get; set; }
+        public string LatestVersion { get; set; } = "";
+        public string ReleaseUrl { get; set; } = "https://github.com/koops61/network-watchdog/releases";
+        public string ReleaseNotes { get; set; } = "";
+        public string UpdateCheckStatus { get; set; } = "IDLE"; // IDLE, CHECKING, UP_TO_DATE, UPDATE_AVAILABLE, ERROR
+
         // Recent latency chart samples
         public List<LatencyPoint> LatencyHistory { get; set; } = new();
         public List<string> RecentLogs { get; set; } = new();
@@ -85,6 +93,16 @@ namespace NetworkWatchdog
         private bool _isRepairing = false;
         private bool _watchdogEnabled = true;
 
+        public const string AppVersion = "1.0.1";
+        public const string GitHubRepo = "koops61/network-watchdog";
+
+        private bool _updateAvailable = false;
+        private string _latestVersion = "v" + AppVersion;
+        private string _releaseUrl = $"https://github.com/{GitHubRepo}/releases";
+        private string _releaseNotes = "";
+        private string _updateCheckStatus = "IDLE";
+        private DateTime _lastUpdateCheck = DateTime.MinValue;
+
         private string _cachedPublicIp = "Recherche...";
         private DateTime _lastPublicIpCheck = DateTime.MinValue;
 
@@ -94,6 +112,8 @@ namespace NetworkWatchdog
         private readonly string _statusFilePath;
 
         public event Action<NetworkMetricsSnapshot>? OnMetricsUpdated;
+        public event Action<string, string>? OnUpdateDetected;
+        public event Action<string, string>? OnManualCheckCompleted;
 
         public NetworkEngine(string baseDir)
         {
@@ -104,13 +124,20 @@ namespace NetworkWatchdog
 
             Directory.CreateDirectory(Path.Combine(baseDir, "logs"));
 
-            AddLog("Network Watchdog démarré. Initialisation du moteur de surveillance...");
+            AddLog($"Network Watchdog v{AppVersion} démarré. Initialisation du moteur de surveillance...");
 
             // Timer de mise à jour toutes les 1.5 seconde
             _timer = new System.Threading.Timer(async _ => await UpdateLoopAsync(), null, 500, 1500);
 
             // Fetch public IP in background
             Task.Run(FetchPublicIpAsync);
+
+            // Vérifier les mises à jour en arrière-plan après 3 secondes
+            Task.Run(async () =>
+            {
+                await Task.Delay(3000);
+                await CheckForUpdatesAsync(manualTrigger: false);
+            });
         }
 
         public void ToggleWatchdog(bool enable)
@@ -319,6 +346,20 @@ namespace NetworkWatchdog
                     }
                 }
 
+                // 5. Informations de version et de mise à jour
+                if ((DateTime.UtcNow - _lastUpdateCheck).TotalHours >= 4)
+                {
+                    _lastUpdateCheck = DateTime.UtcNow;
+                    _ = CheckForUpdatesAsync(manualTrigger: false);
+                }
+
+                snapshot.AppVersion = AppVersion;
+                snapshot.UpdateAvailable = _updateAvailable;
+                snapshot.LatestVersion = _latestVersion;
+                snapshot.ReleaseUrl = _releaseUrl;
+                snapshot.ReleaseNotes = _releaseNotes;
+                snapshot.UpdateCheckStatus = _updateCheckStatus;
+
                 OnMetricsUpdated?.Invoke(snapshot);
                 WriteStatusJson(snapshot);
             }
@@ -326,6 +367,76 @@ namespace NetworkWatchdog
             {
                 Debug.WriteLine($"UpdateLoop error: {ex.Message}");
             }
+        }
+
+        public async Task CheckForUpdatesAsync(bool manualTrigger = false)
+        {
+            try
+            {
+                _updateCheckStatus = "CHECKING";
+                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(7) };
+                client.DefaultRequestHeaders.UserAgent.ParseAdd($"NetworkWatchdog/{AppVersion} (Windows)");
+
+                var url = $"https://api.github.com/repos/{GitHubRepo}/releases/latest";
+                var response = await client.GetStringAsync(url);
+                using var doc = JsonDocument.Parse(response);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("tag_name", out var tagProp))
+                {
+                    var latestTag = tagProp.GetString()?.Trim() ?? "";
+                    var latestClean = latestTag.TrimStart('v', 'V');
+                    var currentClean = AppVersion.TrimStart('v', 'V');
+
+                    var htmlUrl = root.TryGetProperty("html_url", out var htmlProp) ? htmlProp.GetString() ?? "" : "";
+                    var body = root.TryGetProperty("body", out var bodyProp) ? bodyProp.GetString() ?? "" : "";
+
+                    _latestVersion = latestTag;
+                    _releaseUrl = !string.IsNullOrEmpty(htmlUrl) ? htmlUrl : $"https://github.com/{GitHubRepo}/releases";
+                    _releaseNotes = body;
+                    _lastUpdateCheck = DateTime.UtcNow;
+
+                    if (IsNewerVersion(latestClean, currentClean))
+                    {
+                        _updateAvailable = true;
+                        _updateCheckStatus = "UPDATE_AVAILABLE";
+                        AddLog($"[MISE À JOUR] Nouvelle version disponible : {_latestVersion} (actuelle : v{AppVersion})", "INFO");
+                        OnUpdateDetected?.Invoke(_latestVersion, _releaseUrl);
+                        if (manualTrigger)
+                        {
+                            OnManualCheckCompleted?.Invoke("UPDATE_AVAILABLE", $"Nouvelle version {_latestVersion} disponible !");
+                        }
+                    }
+                    else
+                    {
+                        _updateAvailable = false;
+                        _updateCheckStatus = "UP_TO_DATE";
+                        if (manualTrigger)
+                        {
+                            AddLog($"[MISE À JOUR] Network Watchdog est à jour (v{AppVersion}).", "INFO");
+                            OnManualCheckCompleted?.Invoke("UP_TO_DATE", $"Vous utilisez déjà la dernière version (v{AppVersion}).");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _updateCheckStatus = "ERROR";
+                if (manualTrigger)
+                {
+                    AddLog($"[MISE À JOUR] Impossible de contacter GitHub : {ex.Message}", "WARN");
+                    OnManualCheckCompleted?.Invoke("ERROR", "Impossible de vérifier les mises à jour (vérifiez votre connexion internet).");
+                }
+            }
+        }
+
+        private static bool IsNewerVersion(string latest, string current)
+        {
+            if (Version.TryParse(latest, out var vLatest) && Version.TryParse(current, out var vCurrent))
+            {
+                return vLatest > vCurrent;
+            }
+            return string.Compare(latest, current, StringComparison.OrdinalIgnoreCase) > 0;
         }
 
         private void WriteStatusJson(NetworkMetricsSnapshot snapshot)
@@ -345,6 +456,10 @@ namespace NetworkWatchdog
                 var statusObj = new
                 {
                     updated_at = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                    app_version = AppVersion,
+                    update_available = _updateAvailable,
+                    latest_version = _latestVersion,
+                    release_url = _releaseUrl,
                     status = snapshot.Status,
                     latency_ms = snapshot.PrimaryPingMs,
                     active_adapter = snapshot.AdapterName,

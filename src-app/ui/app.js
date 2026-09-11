@@ -6,6 +6,19 @@
 const globalStatusBadge = document.getElementById('globalStatusBadge');
 const globalStatusText = document.getElementById('globalStatusText');
 const minimizeBtn = document.getElementById('minimizeBtn');
+const versionBadge = document.getElementById('versionBadge');
+const updateAlertBtn = document.getElementById('updateAlertBtn');
+const updateAlertText = document.getElementById('updateAlertText');
+
+const updateModal = document.getElementById('updateModal');
+const closeUpdateModalBtn = document.getElementById('closeUpdateModalBtn');
+const modalCurrentVer = document.getElementById('modalCurrentVer');
+const modalLatestVer = document.getElementById('modalLatestVer');
+const modalReleaseNotes = document.getElementById('modalReleaseNotes');
+const modalLaterBtn = document.getElementById('modalLaterBtn');
+const modalDownloadBtn = document.getElementById('modalDownloadBtn');
+
+let currentReleaseUrl = 'https://github.com/koops61/network-watchdog/releases';
 
 const downloadSpeed = document.getElementById('downloadSpeed');
 const downloadUnit = document.getElementById('downloadUnit');
@@ -99,6 +112,31 @@ if (window.chrome && window.chrome.webview) {
 }
 
 function renderMetrics(data) {
+  if (data.type === 'updateCheckResult') {
+    showToast('Mise à jour', data.message);
+    return;
+  }
+
+  // 0. Version & Mises à jour
+  if (data.AppVersion && versionBadge) {
+    versionBadge.textContent = `v${data.AppVersion}`;
+  }
+
+  if (data.UpdateAvailable) {
+    if (updateAlertBtn) updateAlertBtn.classList.remove('hidden');
+    if (updateAlertText && data.LatestVersion) {
+      updateAlertText.textContent = `Mise à jour ${data.LatestVersion} disponible`;
+    }
+    if (modalLatestVer && data.LatestVersion) modalLatestVer.textContent = data.LatestVersion;
+    if (modalCurrentVer && data.AppVersion) modalCurrentVer.textContent = `v${data.AppVersion}`;
+    if (modalReleaseNotes && data.ReleaseNotes) {
+      modalReleaseNotes.textContent = data.ReleaseNotes;
+    }
+    if (data.ReleaseUrl) currentReleaseUrl = data.ReleaseUrl;
+  } else {
+    if (updateAlertBtn) updateAlertBtn.classList.add('hidden');
+  }
+
   // 1. Global Status Badge
   globalStatusBadge.className = 'status-pill';
   if (data.Status === 'UP') {
@@ -240,3 +278,40 @@ minimizeBtn.addEventListener('click', () => {
     window.chrome.webview.postMessage({ action: 'minimizeToTray' });
   }
 });
+
+// Événements Mises à Jour
+if (versionBadge) {
+  versionBadge.addEventListener('click', () => {
+    if (window.chrome && window.chrome.webview) {
+      window.chrome.webview.postMessage({ action: 'checkUpdate' });
+      showToast('Mise à jour', 'Recherche de nouvelle version sur GitHub...');
+    }
+  });
+}
+
+if (updateAlertBtn) {
+  updateAlertBtn.addEventListener('click', () => {
+    if (updateModal) updateModal.classList.remove('hidden');
+  });
+}
+
+if (closeUpdateModalBtn) {
+  closeUpdateModalBtn.addEventListener('click', () => {
+    if (updateModal) updateModal.classList.add('hidden');
+  });
+}
+
+if (modalLaterBtn) {
+  modalLaterBtn.addEventListener('click', () => {
+    if (updateModal) updateModal.classList.add('hidden');
+  });
+}
+
+if (modalDownloadBtn) {
+  modalDownloadBtn.addEventListener('click', () => {
+    if (window.chrome && window.chrome.webview) {
+      window.chrome.webview.postMessage({ action: 'openUrl', url: currentReleaseUrl });
+    }
+    if (updateModal) updateModal.classList.add('hidden');
+  });
+}

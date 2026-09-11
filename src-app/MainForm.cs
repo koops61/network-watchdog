@@ -18,19 +18,54 @@ namespace NetworkWatchdog
         private readonly bool _startMinimized;
         private bool _isClosing = false;
 
+        private ToolStripMenuItem? _itemUpdate;
+        private string _updateUrl = "";
+
         public MainForm(bool startMinimized = false)
         {
             _startMinimized = startMinimized;
-            Text = "Network Watchdog - Tableau de Bord Réseau";
+            Text = $"Network Watchdog v{NetworkEngine.AppVersion} - Tableau de Bord Réseau";
             Width = 1180;
             Height = 820;
             MinimumSize = new Size(950, 680);
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = Color.FromArgb(10, 13, 20);
 
+            // Initialisation du moteur réseau
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            _engine = new NetworkEngine(baseDir);
+            _engine.OnMetricsUpdated += Engine_OnMetricsUpdated;
+            _engine.OnUpdateDetected += Engine_OnUpdateDetected;
+            _engine.OnManualCheckCompleted += Engine_OnManualCheckCompleted;
+
             // Icône et System Tray
             _trayMenu = new ContextMenuStrip();
-            _trayMenu.Items.Add("Ouvrir Network Watchdog", null, (s, e) => RestoreFromTray());
+            var titleItem = new ToolStripMenuItem($"🛡️ Network Watchdog v{NetworkEngine.AppVersion}") { Enabled = false };
+            _trayMenu.Items.Add(titleItem);
+            _trayMenu.Items.Add("-");
+
+            _itemUpdate = new ToolStripMenuItem("⭐ Télécharger la mise à jour...", null, (s, e) =>
+            {
+                if (!string.IsNullOrEmpty(_updateUrl))
+                {
+                    try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_updateUrl) { UseShellExecute = true }); } catch {}
+                }
+            })
+            {
+                Visible = false,
+                Font = new Font(Font, FontStyle.Bold)
+            };
+            _trayMenu.Items.Add(_itemUpdate);
+
+            _trayMenu.Items.Add("Ouvrir le Tableau de Bord", null, (s, e) => RestoreFromTray());
+            _trayMenu.Items.Add("Vérifier les mises à jour...", null, async (s, e) =>
+            {
+                if (_engine != null)
+                {
+                    _trayIcon?.ShowBalloonTip(2000, "Mise à jour", "Recherche de mise à jour sur GitHub...", ToolTipIcon.Info);
+                    await _engine.CheckForUpdatesAsync(true);
+                }
+            });
             _trayMenu.Items.Add("-");
             var itemRestart = new ToolStripMenuItem("Redémarrer Carte Réseau");
             itemRestart.Click += async (s, e) => { if (_engine != null) await _engine.RestartAdapterManualAsync(); };
@@ -45,7 +80,7 @@ namespace NetworkWatchdog
 
             _trayIcon = new NotifyIcon
             {
-                Text = "Network Watchdog (Surveillance Réseau)",
+                Text = $"Network Watchdog v{NetworkEngine.AppVersion}",
                 Icon = SystemIcons.Shield,
                 ContextMenuStrip = _trayMenu,
                 Visible = true
@@ -71,11 +106,6 @@ namespace NetworkWatchdog
                 Dock = DockStyle.Fill
             };
             Controls.Add(_webView);
-
-            // Initialisation du moteur réseau
-            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            _engine = new NetworkEngine(baseDir);
-            _engine.OnMetricsUpdated += Engine_OnMetricsUpdated;
 
             Load += MainForm_Load;
             FormClosing += MainForm_FormClosing;
@@ -153,12 +183,61 @@ namespace NetworkWatchdog
                     case "openFolder":
                         System.Diagnostics.Process.Start("explorer.exe", AppDomain.CurrentDomain.BaseDirectory);
                         break;
+                    case "checkUpdate":
+                        _ = _engine.CheckForUpdatesAsync(true);
+                        break;
+                    case "openUrl":
+                        if (doc.RootElement.TryGetProperty("url", out var urlProp))
+                        {
+                            var url = urlProp.GetString();
+                            if (!string.IsNullOrEmpty(url))
+                            {
+                                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); } catch {}
+                            }
+                        }
+                        break;
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"WebMessage error: {ex.Message}");
             }
+        }
+
+        private void Engine_OnUpdateDetected(string version, string releaseUrl)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action(() => Engine_OnUpdateDetected(version, releaseUrl)));
+                return;
+            }
+
+            _updateUrl = releaseUrl;
+            if (_itemUpdate != null)
+            {
+                _itemUpdate.Text = $"⭐ Mise à jour {version} disponible !";
+                _itemUpdate.Visible = true;
+            }
+
+            _trayIcon.ShowBalloonTip(5000, "Mise à jour disponible !", $"Network Watchdog {version} est disponible. Double-cliquez pour ouvrir.", ToolTipIcon.Info);
+        }
+
+        private void Engine_OnManualCheckCompleted(string status, string message)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action(() => Engine_OnManualCheckCompleted(status, message)));
+                return;
+            }
+
+            var notification = JsonSerializer.Serialize(new
+            {
+                type = "updateCheckResult",
+                status = status,
+                message = message
+            });
+
+            _webView?.CoreWebView2?.PostWebMessageAsJson(notification);
         }
 
         private void Engine_OnMetricsUpdated(NetworkMetricsSnapshot snapshot)
