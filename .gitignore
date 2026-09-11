@@ -1,0 +1,20 @@
+# C# / .NET build outputs
+bin/
+obj/
+dist/
+dist_single/
+*.user
+*.suo
+*.zip
+
+# Local state and runtime logs
+logs/*.log
+status.json
+state.json
+
+# IDE and OS files
+.vs/
+.vscode/
+.idea/
+Thumbs.db
+[Dd]esktop.ini

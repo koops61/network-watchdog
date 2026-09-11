@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Network Watchdog - Tableau de Bord Réseau</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-background">
+    <div class="glow-orb orb-1"></div>
+    <div class="glow-orb orb-2"></div>
+  </div>
+
+  <div class="dashboard-container">
+    <!-- Header -->
+    <header class="dashboard-header">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+            <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+            <line x1="12" y1="20" x2="12.01" y2="20"></line>
+          </svg>
+        </div>
+        <div class="brand-info">
+          <h1>Network Watchdog</h1>
+          <p class="subtitle">Surveillance & Auto-Réparation Réseau Windows</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div id="connectionBadge" class="status-badge status-loading">
+          <span class="status-dot"></span>
+          <span id="badgeText">Connexion...</span>
+        </div>
+        <button id="cancelRebootBtn" class="btn btn-danger" title="Annule immédiatement tout redémarrage programmé du PC">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="15" y1="9" x2="9" y2="15"></line>
+            <line x1="9" y1="9" x2="15" y2="15"></line>
+          </svg>
+          Annuler Reboot (shutdown /a)
+        </button>
+      </div>
+    </header>
+
+    <!-- Stat Cards Grid -->
+    <main class="metrics-grid">
+      <!-- Card: Statut Réseau -->
+      <div class="metric-card glass-card">
+        <div class="card-icon icon-cyan">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+            <line x1="6" y1="6" x2="6.01" y2="6"></line>
+            <line x1="6" y1="18" x2="6.01" y2="18"></line>
+          </svg>
+        </div>
+        <div class="card-content">
+          <span class="card-label">Carte Réseau Active</span>
+          <h2 id="activeAdapterName" class="card-value">Détection...</h2>
+          <span id="adapterStatusDetail" class="card-subtext">Interface surveillée</span>
+        </div>
+      </div>
+
+      <!-- Card: Latence -->
+      <div class="metric-card glass-card">
+        <div class="card-icon icon-green">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+        </div>
+        <div class="card-content">
+          <span class="card-label">Latence Moyenne</span>
+          <h2 id="latencyValue" class="card-value">-- <small>ms</small></h2>
+          <span id="latencyRating" class="card-subtext">En attente de ping</span>
+        </div>
+      </div>
+
+      <!-- Card: Stabilité & Déconnexions -->
+      <div class="metric-card glass-card">
+        <div class="card-icon icon-amber">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        </div>
+        <div class="card-content">
+          <span class="card-label">Indice d'Instabilité</span>
+          <h2 id="flappingScore" class="card-value">0</h2>
+          <span id="flappingSubtext" class="card-subtext">0 micro-coupure détectée</span>
+        </div>
+      </div>
+
+      <!-- Card: Sécurité Anti-Bootloop -->
+      <div class="metric-card glass-card">
+        <div class="card-icon icon-purple">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          </svg>
+        </div>
+        <div class="card-content">
+          <span class="card-label">Protection Anti-Bootloop</span>
+          <h2 id="antiBootloopStatus" class="card-value">Active</h2>
+          <span id="antiBootloopDetail" class="card-subtext">Cooldown : 20 min</span>
+        </div>
+      </div>
+    </main>
+
+    <!-- Graph & Controls Section -->
+    <section class="chart-section glass-card">
+      <div class="section-header">
+        <div class="section-title">
+          <h3>Historique Récent de Latence</h3>
+          <p>Échantillons de connexion mesurés toutes les 5 secondes</p>
+        </div>
+        <div class="sync-indicator">
+          <span class="pulse-dot"></span>
+          <span id="lastUpdatedTime">Dernière mesure : --:--:--</span>
+        </div>
+      </div>
+
+      <div class="chart-wrapper">
+        <div id="barsContainer" class="bars-container">
+          <!-- Dynamically populated by app.js -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Logs / Incidents Section -->
+    <section class="logs-section glass-card">
+      <div class="section-header">
+        <div class="section-title">
+          <h3>Journal des Événements & Auto-Réparations</h3>
+          <p>Historique des actions de redémarrage de carte et d'incidents</p>
+        </div>
+        <div class="log-actions">
+          <button id="refreshLogsBtn" class="btn btn-secondary">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            Actualiser
+          </button>
+        </div>
+      </div>
+
+      <div class="logs-container">
+        <div id="logsTerminal" class="logs-terminal">
+          <div class="log-entry log-info">[En attente de données du watchdog...]</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="dashboard-footer">
+      <p>Network Watchdog pour Windows • Protection et auto-réparation automatique • <a href="#" id="openConfigLink">config.json</a></p>
+    </footer>
+  </div>
+
+  <!-- Toast Notification Modal / Banner -->
+  <div id="toastAlert" class="toast-alert hidden">
+    <div class="toast-icon">⚠️</div>
+    <div class="toast-body">
+      <strong id="toastTitle">Alerte</strong>
+      <p id="toastMessage">Message d'alerte</p>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

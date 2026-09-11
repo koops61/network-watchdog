@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Network Watchdog</title>
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Ambient Atmospheric Glow -->
+  <div class="ambient-glow">
+    <div class="glow-orb orb-1"></div>
+    <div class="glow-orb orb-2"></div>
+    <div class="glow-orb orb-3"></div>
+  </div>
+
+  <div class="app-layout">
+    <!-- Header -->
+    <header class="top-nav">
+      <div class="brand">
+        <div class="brand-logo">
+          <img src="icon.png" alt="Network Watchdog Icon" class="brand-icon-img">
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">NETWORK WATCHDOG</div>
+          <div class="brand-sub">Moniteur Réseau Haute Précision & Auto-Réparation</div>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <div id="globalStatusBadge" class="status-pill status-loading">
+          <span class="pill-dot"></span>
+          <span id="globalStatusText">Initialisation...</span>
+        </div>
+        
+        <button id="minimizeBtn" class="nav-icon-btn" title="Réduire dans la zone de notification (près de l'horloge)">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="dashboard-body">
+      <!-- Section 1 : Débits & Latences principales -->
+      <div class="speed-grid">
+        <!-- Download -->
+        <div class="speed-card glass-panel">
+          <div class="speed-header">
+            <div class="speed-title">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--cyan)" stroke-width="2.5">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <polyline points="19 12 12 19 5 12"></polyline>
+              </svg>
+              <span>TÉLÉCHARGEMENT (DOWNLOAD)</span>
+            </div>
+            <span class="speed-total" id="totalDownload">--</span>
+          </div>
+          <div class="speed-value-row">
+            <h2 id="downloadSpeed" class="speed-num">0.0</h2>
+            <span id="downloadUnit" class="speed-unit">Ko/s</span>
+          </div>
+          <div class="activity-bar-track">
+            <div id="downloadActivityBar" class="activity-bar-fill fill-cyan" style="width: 5%;"></div>
+          </div>
+        </div>
+
+        <!-- Upload -->
+        <div class="speed-card glass-panel">
+          <div class="speed-header">
+            <div class="speed-title">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--purple)" stroke-width="2.5">
+                <line x1="12" y1="19" x2="12" y2="5"></line>
+                <polyline points="5 12 12 5 19 12"></polyline>
+              </svg>
+              <span>ENVOI (UPLOAD)</span>
+            </div>
+            <span class="speed-total" id="totalUpload">--</span>
+          </div>
+          <div class="speed-value-row">
+            <h2 id="uploadSpeed" class="speed-num">0.0</h2>
+            <span id="uploadUnit" class="speed-unit">Ko/s</span>
+          </div>
+          <div class="activity-bar-track">
+            <div id="uploadActivityBar" class="activity-bar-fill fill-purple" style="width: 5%;"></div>
+          </div>
+        </div>
+
+        <!-- Triple Ping Matrix -->
+        <div class="triple-ping-card glass-panel">
+          <div class="speed-header">
+            <div class="speed-title">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--green)" stroke-width="2.5">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+              </svg>
+              <span>TEST DE PING MULTI-DESTINATIONS</span>
+            </div>
+          </div>
+          <div class="ping-row-grid">
+            <!-- Box Gateway -->
+            <div class="ping-cell">
+              <span class="ping-cell-label">Box / Routeur</span>
+              <span class="ping-cell-ip" id="gatewayIpShort">Passerelle</span>
+              <div class="ping-badge" id="pingGatewayBadge">-- ms</div>
+            </div>
+            <!-- Cloudflare -->
+            <div class="ping-cell">
+              <span class="ping-cell-label">Cloudflare</span>
+              <span class="ping-cell-ip">1.1.1.1</span>
+              <div class="ping-badge" id="pingCloudflareBadge">-- ms</div>
+            </div>
+            <!-- Google -->
+            <div class="ping-cell">
+              <span class="ping-cell-label">Google DNS</span>
+              <span class="ping-cell-ip">8.8.8.8</span>
+              <div class="ping-badge" id="pingGoogleBadge">-- ms</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2 : Topologie & Carte d'identité Réseau -->
+      <div class="network-identity-card glass-panel">
+        <div class="identity-header">
+          <div class="identity-title-group">
+            <div class="identity-icon">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                <line x1="6" y1="18" x2="6.01" y2="18"></line>
+              </svg>
+            </div>
+            <div>
+              <h3 id="adapterNameText" class="adapter-title">Carte Réseau Active</h3>
+              <p id="adapterDescText" class="adapter-desc">Recherche de la carte active...</p>
+            </div>
+          </div>
+          <div class="identity-badge" id="adapterSpeedBadge">-- Gbps</div>
+        </div>
+
+        <div class="identity-specs-grid">
+          <div class="spec-box">
+            <span class="spec-label">IP Locale (IPv4)</span>
+            <span class="spec-val" id="specLocalIp">--</span>
+          </div>
+          <div class="spec-box">
+            <span class="spec-label">Masque Sous-Réseau</span>
+            <span class="spec-val" id="specSubnet">--</span>
+          </div>
+          <div class="spec-box">
+            <span class="spec-label">Passerelle (Box)</span>
+            <span class="spec-val" id="specGateway">--</span>
+          </div>
+          <div class="spec-box">
+            <span class="spec-label">Serveurs DNS</span>
+            <span class="spec-val" id="specDns">--</span>
+          </div>
+          <div class="spec-box">
+            <span class="spec-label">Adresse MAC</span>
+            <span class="spec-val font-mono" id="specMac">--</span>
+          </div>
+          <div class="spec-box">
+            <span class="spec-label">IP Publique (Extérieure)</span>
+            <span class="spec-val" id="specPublicIp">Recherche...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3 : Graphique en direct & Santé Réseau -->
+      <div class="chart-and-health-grid">
+        <!-- Graphique Latence -->
+        <div class="chart-panel glass-panel">
+          <div class="panel-header">
+            <div>
+              <h4>Graphique de Latence en Temps Réel</h4>
+              <p class="panel-sub">Mesuré en continu vers les passerelles et cibles internet</p>
+            </div>
+            <div class="chart-legend">
+              <span class="legend-item"><span class="dot-green"></span> En ligne</span>
+              <span class="legend-item"><span class="dot-red"></span> Perte de paquet</span>
+            </div>
+          </div>
+          <div class="chart-container">
+            <div id="sparkBarsContainer" class="spark-bars">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Indicateurs de Stabilité & Watchdog -->
+        <div class="health-panel glass-panel">
+          <div class="panel-header">
+            <h4>Diagnostic & Stabilité</h4>
+          </div>
+          <div class="health-metrics-list">
+            <div class="health-item">
+              <div class="health-item-info">
+                <span class="health-label">Perte de paquets</span>
+                <span class="health-sub">Taux d'échec récent</span>
+              </div>
+              <span class="health-value" id="packetLossVal">0.0%</span>
+            </div>
+            <div class="health-item">
+              <div class="health-item-info">
+                <span class="health-label">Micro-coupures (Flapping)</span>
+                <span class="health-sub">Transitions instables</span>
+              </div>
+              <span class="health-value" id="flappingVal">0</span>
+            </div>
+            <div class="health-item">
+              <div class="health-item-info">
+                <span class="health-label">Protection Anti-Bootloop</span>
+                <span class="health-sub" id="antiBootloopSub">Sécurité anti-boucle active</span>
+              </div>
+              <span class="health-value text-green" id="antiBootloopVal">OK</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 4 : Centre de Contrôle & Actions Immédiates -->
+      <div class="actions-panel glass-panel">
+        <div class="action-btn-group">
+          <button id="repairAdapterBtn" class="btn btn-primary" title="Désactive et réactive la carte réseau pour résoudre les blocages">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            <span>Redémarrer la Carte Réseau</span>
+          </button>
+
+          <button id="toggleWatchdogBtn" class="btn btn-toggle active">
+            <span class="toggle-indicator"></span>
+            <span id="toggleWatchdogText">Surveillance Auto : ACTIVE</span>
+          </button>
+
+          <button id="cancelRebootBtn" class="btn btn-danger" title="Annule immédiatement tout compte à rebours de redémarrage du PC">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="15" y1="9" x2="9" y2="15"></line>
+              <line x1="9" y1="9" x2="15" y2="15"></line>
+            </svg>
+            <span>Annuler Reboot PC (shutdown /a)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Section 5 : Journal des événements & Terminal en direct -->
+      <div class="terminal-panel glass-panel">
+        <div class="terminal-header">
+          <div class="terminal-title">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-name">JOURNAL DES ÉVÉNEMENTS RÉSEAU (TEMPS RÉEL)</span>
+          </div>
+          <span class="terminal-status" id="terminalLiveBadge">En direct</span>
+        </div>
+        <div class="terminal-body" id="terminalConsole">
+          <div class="term-line term-info">[Démarrage] Connexion au moteur Network Watchdog...</div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Notification Toast Popup -->
+    <div id="toast" class="toast-card hidden">
+      <div class="toast-icon">⚡</div>
+      <div class="toast-content">
+        <h5 id="toastTitle">Notification</h5>
+        <p id="toastMessage">Détails de l'action</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
