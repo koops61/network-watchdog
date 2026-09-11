@@ -88,6 +88,7 @@ namespace NetworkWatchdog
             {
                 WindowState = FormWindowState.Minimized;
                 Hide();
+                _trayIcon.ShowBalloonTip(3500, "Network Watchdog", "Surveillance réseau active en arrière-plan. Double-cliquez sur l'icône près de l'horloge pour ouvrir.", ToolTipIcon.Info);
             }
         }
 

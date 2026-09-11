@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 title Network Watchdog - Annuler le Redémarrage
 echo ==============================================================================

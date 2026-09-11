@@ -4,6 +4,8 @@
 [CmdletBinding()]
 param()
 
+Set-Location $PSScriptRoot
+
 $TaskName = "NetworkWatchdog"
 $ScriptPath = Join-Path $PSScriptRoot "network_watchdog.ps1"
 
@@ -26,13 +28,14 @@ if (-not (Test-Path $ScriptPath)) {
     exit 1
 }
 
-# 2. Supprimer la tâche si elle existe déjà
+# 2. Supprimer la tâche si elle existe déjà et arrêter les processus en cours
 $ExistingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 if ($ExistingTask) {
     Write-Host "[INFO] Une tâche existante '$TaskName' a ete detectee. Mise a jour..." -ForegroundColor Yellow
     Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
 }
+Get-Process -Name "NetworkWatchdog" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
 # 3. Définir l'action
 $ExePath = Join-Path $PSScriptRoot "NetworkWatchdog.exe"
@@ -50,8 +53,9 @@ if (Test-Path $ExePath) {
         -WorkingDirectory $PSScriptRoot
 }
 
-# 4. Définir les déclencheurs (Au démarrage du système et à l'ouverture de session)
-$TriggerLogon = New-ScheduledTaskTrigger -AtLogOn
+# 4. Définir les déclencheurs (À l'ouverture de session de l'utilisateur avec privilèges élevés)
+$CurrentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+$TriggerLogon = New-ScheduledTaskTrigger -AtLogOn -User $CurrentUser
 # Décalage de 10 secondes au logon pour laisser le système charger
 $TriggerLogon.Delay = "PT10S"
 
@@ -64,8 +68,7 @@ $Settings = New-ScheduledTaskSettingsSet `
     -ExecutionTimeLimit (New-TimeSpan -Days 0) `
     -Priority 4
 
-# 6. Définir le principal (Privilèges Administrateurs les plus élevés)
-$CurrentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+# 6. Définir le principal (Privilèges Administrateurs les plus élevés, sans popup UAC)
 $Principal = New-ScheduledTaskPrincipal `
     -UserId $CurrentUser `
     -LogonType Interactive `
@@ -82,13 +85,24 @@ try {
         -Description "Surveille la connexion reseau au demarrage du PC, redemarre la carte reseau en cas d'instabilite ou perte et redemarre le PC avec protection anti-bootloop si la coupure persiste." | Out-Null
 
     Write-Host "[SUCCES] La tâche planifiee '$TaskName' a ete creee avec succes !" -ForegroundColor Green
-    Write-Host "Elle demarrera automatiquement avec Windows avec les privileges Administrateur (sans popup UAC)." -ForegroundColor Green
+    Write-Host "Utilisateur cible   : $CurrentUser" -ForegroundColor Cyan
+    Write-Host "Niveau d'execution  : Administrateur maximal (RunLevel Highest, aucun popup UAC)" -ForegroundColor Cyan
+    Write-Host "Declencheur         : Ouverture de session (AtLogOn, delai 10s)" -ForegroundColor Cyan
     Write-Host ""
     
-    # 8. Proposer de démarrer la tâche immédiatement
+    # 8. Démarrer la tâche immédiatement
     Write-Host "Demarrage immediat du watchdog en arriere-plan..." -ForegroundColor Cyan
     Start-ScheduledTask -TaskName $TaskName
-    Write-Host "[OK] Network Watchdog est maintenant actif en arriere-plan !" -ForegroundColor Green
+    Start-Sleep -Seconds 2
+    
+    $RunningProc = Get-Process -Name "NetworkWatchdog" -ErrorAction SilentlyContinue
+    if ($RunningProc) {
+        Write-Host "[OK] Network Watchdog est maintenant actif en arriere-plan (PID: $($RunningProc.Id)) !" -ForegroundColor Green
+        Write-Host "[ASTUCE] L'application tourne dans la zone de notification (pres de l'horloge)." -ForegroundColor Yellow
+        Write-Host "         Si vous ne la voyez pas directement, cliquez sur la petite fleche '^' de la barre des tâches." -ForegroundColor Yellow
+    } else {
+        Write-Host "[OK] Tâche planifiee demarree. Verifiez les logs avec 'view_logs.bat'." -ForegroundColor Green
+    }
 } catch {
     Write-Host "[ERREUR] Impossible de creer la tâche planifiee : $_" -ForegroundColor Red
     exit 1

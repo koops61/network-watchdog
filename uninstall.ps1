@@ -4,6 +4,8 @@
 [CmdletBinding()]
 param()
 
+Set-Location $PSScriptRoot
+
 $TaskName = "NetworkWatchdog"
 
 $IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)

@@ -91,6 +91,7 @@ namespace NetworkWatchdog
         private readonly string _configFilePath;
         private readonly string _stateFilePath;
         private readonly string _logFilePath;
+        private readonly string _statusFilePath;
 
         public event Action<NetworkMetricsSnapshot>? OnMetricsUpdated;
 
@@ -99,6 +100,7 @@ namespace NetworkWatchdog
             _configFilePath = Path.Combine(baseDir, "config.json");
             _stateFilePath = Path.Combine(baseDir, "state.json");
             _logFilePath = Path.Combine(baseDir, "logs", "network_watchdog.log");
+            _statusFilePath = Path.Combine(baseDir, "status.json");
 
             Directory.CreateDirectory(Path.Combine(baseDir, "logs"));
 
@@ -318,11 +320,43 @@ namespace NetworkWatchdog
                 }
 
                 OnMetricsUpdated?.Invoke(snapshot);
+                WriteStatusJson(snapshot);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"UpdateLoop error: {ex.Message}");
             }
+        }
+
+        private void WriteStatusJson(NetworkMetricsSnapshot snapshot)
+        {
+            try
+            {
+                var history = snapshot.LatencyHistory
+                    .TakeLast(10)
+                    .Select(h => new
+                    {
+                        time = h.Time,
+                        online = h.Online,
+                        latency = h.Latency
+                    })
+                    .ToList();
+
+                var statusObj = new
+                {
+                    updated_at = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                    status = snapshot.Status,
+                    latency_ms = snapshot.PrimaryPingMs,
+                    active_adapter = snapshot.AdapterName,
+                    consecutive_failures = snapshot.ConsecutiveFailures,
+                    flapping_score = snapshot.FlappingScore,
+                    recent_history = history
+                };
+
+                var json = JsonSerializer.Serialize(statusObj, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(_statusFilePath, json);
+            }
+            catch {}
         }
 
         private async Task HandleAutoRepairAsync(string adapterName)
