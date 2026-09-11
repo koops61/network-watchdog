@@ -1,0 +1,21 @@
+{
+  "ping_targets": [
+    "1.1.1.1",
+    "8.8.8.8",
+    "1.0.0.1"
+  ],
+  "ping_timeout_ms": 1000,
+  "check_interval_seconds": 5,
+  "history_window_size": 30,
+  "unstable_flapping_threshold": 3,
+  "consecutive_failures_before_adapter_reset": 3,
+  "adapter_restart_wait_seconds": 20,
+  "max_adapter_retries_before_reboot": 2,
+  "reboot_countdown_seconds": 60,
+  "anti_bootloop_cooldown_minutes": 20,
+  "target_adapter_name": "",
+  "enable_desktop_notifications": true,
+  "enable_sound_alert": true,
+  "log_file": "logs/network_watchdog.log",
+  "max_log_size_mb": 10
+}
