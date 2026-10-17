@@ -1,7 +1,7 @@
 # 🛡️ Network Watchdog - Application Bureau & Auto-Réparation pour Windows
 
 **Network Watchdog** est une application Windows complète dotée d'une interface graphique moderne (Dark Glassmorphism) et d'un moteur d'auto-réparation automatique :
-1. **Surveillance & Télémétrie en direct** : Débit en temps réel (**Download/Upload** en Ko/s ou Mo/s), carte d'identité réseau (IP locale, MAC, Vitesse 2.5 Gbps, Passerelle, DNS, IP publique), triple test ping simultané (Box, Cloudflare, Google), perte de paquets et score d'instabilité (« déco/reco »).
+1. **Surveillance & Télémétrie en direct** : Débit en temps réel (**Download/Upload** en Ko/s ou Mo/s), carte d'identité réseau (IP locale, MAC, Vitesse 2.5 Gbps, Passerelle, DNS, IP publique), triple test ping simultané (Box, Cloudflare 1.1.1.1, Cloudflare 1.0.0.1), perte de paquets et score d'instabilité (« déco/reco »).
 2. **Auto-Réparation Niveau 1** : Redémarrage logiciel de la carte réseau active en cas de perte de réseau ou d'instabilité avérée.
 3. **Auto-Réparation Niveau 2** : Si le problème persiste après 2 tentatives, redémarrage propre du PC avec compte à rebours de prévenance de 60 secondes et **protection inviolable contre les boucles de redémarrage (Anti-Bootloop)**.
 4. **Zone de Notification (System Tray)** : Réduction discrète près de l'horloge Windows avec menu contextuel clic droit.

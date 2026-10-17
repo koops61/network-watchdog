@@ -10,6 +10,7 @@
     <AssemblyName>NetworkWatchdog</AssemblyName>
     <RootNamespace>NetworkWatchdog</RootNamespace>
     <ApplicationIcon>app.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>

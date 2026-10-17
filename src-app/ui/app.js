@@ -33,7 +33,7 @@ const uploadActivityBar = document.getElementById('uploadActivityBar');
 const gatewayIpShort = document.getElementById('gatewayIpShort');
 const pingGatewayBadge = document.getElementById('pingGatewayBadge');
 const pingCloudflareBadge = document.getElementById('pingCloudflareBadge');
-const pingGoogleBadge = document.getElementById('pingGoogleBadge');
+const pingCloudflare2Badge = document.getElementById('pingCloudflare2Badge') || document.getElementById('pingGoogleBadge');
 
 const adapterNameText = document.getElementById('adapterNameText');
 const adapterDescText = document.getElementById('adapterDescText');
@@ -166,11 +166,12 @@ function renderMetrics(data) {
   const ulPct = Math.min(Math.max((data.UploadSpeedKBps / 5120) * 100, 4), 100);
   uploadActivityBar.style.width = `${ulPct}%`;
 
-  // 4. Triple Pings
+  // 4. Triple Pings (Passerelle, Cloudflare 1.1.1.1, Cloudflare 1.0.0.1)
   gatewayIpShort.textContent = data.GatewayIp || 'Passerelle';
   updatePingBadge(pingGatewayBadge, data.PingGatewayMs);
   updatePingBadge(pingCloudflareBadge, data.PingCloudflareMs);
-  updatePingBadge(pingGoogleBadge, data.PingGoogleMs);
+  const cloudflare2Ping = data.PingCloudflare2Ms !== undefined ? data.PingCloudflare2Ms : data.PingGoogleMs;
+  updatePingBadge(pingCloudflare2Badge, cloudflare2Ping !== undefined ? cloudflare2Ping : -1);
 
   // 5. Network Identity Card
   adapterNameText.textContent = data.AdapterName;

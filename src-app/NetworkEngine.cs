@@ -41,7 +41,8 @@ namespace NetworkWatchdog
         // Latencies
         public int PingGatewayMs { get; set; } = -1;
         public int PingCloudflareMs { get; set; } = -1;
-        public int PingGoogleMs { get; set; } = -1;
+        public int PingCloudflare2Ms { get; set; } = -1;
+        public int PingGoogleMs { get => PingCloudflare2Ms; set => PingCloudflare2Ms = value; }
         public int PrimaryPingMs { get; set; } = -1;
 
         // Stability & Watchdog stats
@@ -78,7 +79,7 @@ namespace NetworkWatchdog
         private readonly System.Threading.Timer _timer;
         private readonly Ping _pingGateway = new();
         private readonly Ping _pingCloudflare = new();
-        private readonly Ping _pingGoogle = new();
+        private readonly Ping _pingCloudflare2 = new();
 
         private long _lastBytesReceived = -1;
         private long _lastBytesSent = -1;
@@ -89,9 +90,11 @@ namespace NetworkWatchdog
         private readonly ConcurrentQueue<string> _logs = new();
 
         private int _consecutiveFailures = 0;
+        private int _consecutiveSuccesses = 0;
         private int _adapterRestartCount = 0;
         private bool _isRepairing = false;
         private bool _watchdogEnabled = true;
+        private string _lastKnownAdapterName = "Ethernet";
 
         public const string AppVersion = "1.0.1";
         public const string GitHubRepo = "koops61/network-watchdog";
@@ -211,6 +214,7 @@ namespace NetworkWatchdog
                 var activeInterface = FindPrimaryInterface();
                 if (activeInterface != null)
                 {
+                    _lastKnownAdapterName = activeInterface.Name;
                     snapshot.AdapterName = activeInterface.Name;
                     snapshot.AdapterDescription = activeInterface.Description;
                     snapshot.AdapterType = activeInterface.NetworkInterfaceType.ToString();
@@ -249,6 +253,11 @@ namespace NetworkWatchdog
                     snapshot.TotalReceivedFormatted = FormatBytes(stats.BytesReceived);
                     snapshot.TotalSentFormatted = FormatBytes(stats.BytesSent);
                 }
+                else
+                {
+                    snapshot.AdapterName = !string.IsNullOrEmpty(_lastKnownAdapterName) ? _lastKnownAdapterName : "Ethernet";
+                    snapshot.AdapterDescription = "Interface physique déconnectée ou réinitialisée";
+                }
 
                 // Refresh public IP periodically (every 10 minutes)
                 if ((DateTime.UtcNow - _lastPublicIpCheck).TotalMinutes > 10)
@@ -257,25 +266,25 @@ namespace NetworkWatchdog
                 }
                 snapshot.PublicIp = _cachedPublicIp;
 
-                // 2. Triple test de ping
+                // 2. Triple test de ping (Passerelle locale, Cloudflare Primaire 1.1.1.1, Cloudflare Secondaire 1.0.0.1)
                 var tGateway = PingHostAsync(snapshot.GatewayIp, 1000);
                 var tCloudflare = PingHostAsync("1.1.1.1", 1000);
-                var tGoogle = PingHostAsync("8.8.8.8", 1000);
+                var tCloudflare2 = PingHostAsync("1.0.0.1", 1000);
 
-                await Task.WhenAll(tGateway, tCloudflare, tGoogle);
+                await Task.WhenAll(tGateway, tCloudflare, tCloudflare2);
 
                 snapshot.PingGatewayMs = tGateway.Result;
                 snapshot.PingCloudflareMs = tCloudflare.Result;
-                snapshot.PingGoogleMs = tGoogle.Result;
+                snapshot.PingCloudflare2Ms = tCloudflare2.Result;
 
-                // Ping principal vers l'extérieur (le meilleur entre Cloudflare et Google)
+                // Ping principal vers l'extérieur (le meilleur entre Cloudflare 1.1.1.1 et 1.0.0.1)
                 int bestExternalPing = -1;
-                if (snapshot.PingCloudflareMs >= 0 && snapshot.PingGoogleMs >= 0)
-                    bestExternalPing = Math.Min(snapshot.PingCloudflareMs, snapshot.PingGoogleMs);
+                if (snapshot.PingCloudflareMs >= 0 && snapshot.PingCloudflare2Ms >= 0)
+                    bestExternalPing = Math.Min(snapshot.PingCloudflareMs, snapshot.PingCloudflare2Ms);
                 else if (snapshot.PingCloudflareMs >= 0)
                     bestExternalPing = snapshot.PingCloudflareMs;
-                else if (snapshot.PingGoogleMs >= 0)
-                    bestExternalPing = snapshot.PingGoogleMs;
+                else if (snapshot.PingCloudflare2Ms >= 0)
+                    bestExternalPing = snapshot.PingCloudflare2Ms;
 
                 snapshot.PrimaryPingMs = bestExternalPing;
                 snapshot.IsOnline = (bestExternalPing >= 0);
@@ -300,13 +309,21 @@ namespace NetworkWatchdog
                 {
                     snapshot.Status = "DOWN";
                     _consecutiveFailures++;
+                    _consecutiveSuccesses = 0;
                 }
                 else
                 {
+                    _consecutiveSuccesses++;
                     if (_consecutiveFailures > 0)
                     {
                         AddLog($"Connexion rétablie ! Latence : {snapshot.PrimaryPingMs} ms", "INFO");
                         _consecutiveFailures = 0;
+                    }
+
+                    // Ne réinitialiser le compteur de tentatives que si la connexion reste stable au moins 60 secondes (~40 cycles)
+                    if (_adapterRestartCount > 0 && _consecutiveSuccesses >= 40)
+                    {
+                        AddLog("Connexion stabilisée depuis plus de 60s. Réinitialisation du cycle d'auto-réparation.", "INFO");
                         _adapterRestartCount = 0;
                     }
 
@@ -338,7 +355,8 @@ namespace NetworkWatchdog
                 // 4. Déclenchement de l'auto-réparation (Watchdog) si activé
                 if (_watchdogEnabled && !_isRepairing)
                 {
-                    bool needsRepair = (_consecutiveFailures >= 3) || (snapshot.Status == "UNSTABLE" && transitions >= 6);
+                    // 4 échecs consécutifs (~6 secondes de coupure confirmée) ou instabilité critique
+                    bool needsRepair = (_consecutiveFailures >= 4) || (snapshot.Status == "UNSTABLE" && transitions >= 6);
                     if (needsRepair)
                     {
                         _isRepairing = true;
@@ -481,12 +499,20 @@ namespace NetworkWatchdog
                 if (_adapterRestartCount < 2)
                 {
                     _adapterRestartCount++;
-                    AddLog($"[AUTO-RÉPARATION] Coupure confirmée. Tentative {_adapterRestartCount}/2 : Redémarrage de la carte '{adapterName}'...", "WARN");
+                    AddLog($"[AUTO-RÉPARATION] Coupure confirmée ({_consecutiveFailures} échecs). Tentative {_adapterRestartCount}/2 : Réinitialisation de la carte '{adapterName}'...", "WARN");
 
-                    await RestartAdapterInternalAsync(adapterName);
+                    bool success = await RestartAdapterInternalAsync(adapterName);
+                    if (success)
+                    {
+                        AddLog($"Carte '{adapterName}' réinitialisée. Attente de reconnexion et négociation DHCP (20s)...", "INFO");
+                    }
+                    else
+                    {
+                        AddLog($"La réinitialisation de la carte '{adapterName}' a échoué (vérifiez les droits Administrateur).", "ERROR");
+                    }
 
                     // Attente de négociation
-                    await Task.Delay(15000);
+                    await Task.Delay(20000);
                     _isRepairing = false;
                 }
                 else
@@ -508,9 +534,10 @@ namespace NetworkWatchdog
         public async Task<bool> RestartAdapterManualAsync()
         {
             var iface = FindPrimaryInterface();
-            if (iface == null) return false;
-            AddLog($"[MANUEL] Redémarrage demandé pour la carte '{iface.Name}'...", "INFO");
-            return await RestartAdapterInternalAsync(iface.Name);
+            var targetName = iface?.Name ?? _lastKnownAdapterName;
+            if (string.IsNullOrEmpty(targetName)) return false;
+            AddLog($"[MANUEL] Redémarrage demandé pour la carte '{targetName}'...", "INFO");
+            return await RestartAdapterInternalAsync(targetName);
         }
 
         private async Task<bool> RestartAdapterInternalAsync(string adapterName)
@@ -519,16 +546,37 @@ namespace NetworkWatchdog
             {
                 try
                 {
-                    var cmd = $"Restart-NetAdapter -Name '{adapterName}' -Confirm:$false";
-                    var psi = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"{cmd}\"")
+                    // Méthode robuste : Disable puis Enable avec capture d'erreurs complète
+                    var script = $"$ErrorActionPreference = 'Stop'; Disable-NetAdapter -Name '{adapterName}' -Confirm:$false; Start-Sleep -Seconds 2; Enable-NetAdapter -Name '{adapterName}' -Confirm:$false";
+                    var psi = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"{script}\"")
                     {
                         CreateNoWindow = true,
-                        UseShellExecute = false
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
                     };
-                    var proc = Process.Start(psi);
-                    proc?.WaitForExit(10000);
-                    AddLog($"Carte réseau '{adapterName}' redémarrée avec succès.", "INFO");
-                    return true;
+                    using var proc = Process.Start(psi);
+                    if (proc == null)
+                    {
+                        AddLog($"Impossible de démarrer PowerShell pour réinitialiser la carte '{adapterName}'.", "ERROR");
+                        return false;
+                    }
+
+                    string stderr = proc.StandardError.ReadToEnd();
+                    string stdout = proc.StandardOutput.ReadToEnd();
+                    proc.WaitForExit(15000);
+
+                    if (proc.ExitCode == 0 && string.IsNullOrWhiteSpace(stderr))
+                    {
+                        AddLog($"Carte réseau '{adapterName}' réinitialisée (Disable/Enable) avec succès.", "INFO");
+                        return true;
+                    }
+                    else
+                    {
+                        var err = !string.IsNullOrWhiteSpace(stderr) ? stderr.Trim() : (!string.IsNullOrWhiteSpace(stdout) ? stdout.Trim() : $"Code {proc.ExitCode}");
+                        AddLog($"Échec réinitialisation carte '{adapterName}' : {err}", "ERROR");
+                        return false;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -617,15 +665,14 @@ namespace NetworkWatchdog
         private NetworkInterface? FindPrimaryInterface()
         {
             var interfaces = NetworkInterface.GetAllNetworkInterfaces()
-                .Where(i => i.OperationalStatus == OperationalStatus.Up &&
-                            i.NetworkInterfaceType != NetworkInterfaceType.Loopback &&
+                .Where(i => i.NetworkInterfaceType != NetworkInterfaceType.Loopback &&
                             !i.Description.ToLower().Contains("virtual") &&
                             !i.Description.ToLower().Contains("pseudo") &&
                             !i.Description.ToLower().Contains("wsl"))
                 .ToList();
 
-            // 1. Chercher la carte avec passerelle IPv4 configurée
-            foreach (var iface in interfaces)
+            // 1. Chercher la carte avec passerelle IPv4 configurée et statut Up
+            foreach (var iface in interfaces.Where(i => i.OperationalStatus == OperationalStatus.Up))
             {
                 var ipProps = iface.GetIPProperties();
                 if (ipProps.GatewayAddresses.Any(g => g.Address.AddressFamily == AddressFamily.InterNetwork && !g.Address.Equals(IPAddress.Any)))
@@ -634,6 +681,18 @@ namespace NetworkWatchdog
                 }
             }
 
+            // 2. Prendre n'importe quelle interface physique active (Up)
+            var anyUp = interfaces.FirstOrDefault(i => i.OperationalStatus == OperationalStatus.Up);
+            if (anyUp != null) return anyUp;
+
+            // 3. Carte correspondant au dernier nom connu (même si Down lors d'une coupure)
+            if (!string.IsNullOrEmpty(_lastKnownAdapterName))
+            {
+                var lastMatch = interfaces.FirstOrDefault(i => i.Name.Equals(_lastKnownAdapterName, StringComparison.OrdinalIgnoreCase));
+                if (lastMatch != null) return lastMatch;
+            }
+
+            // 4. Première carte physique existante
             return interfaces.FirstOrDefault();
         }
 
