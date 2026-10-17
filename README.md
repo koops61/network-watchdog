@@ -26,7 +26,7 @@ Vous pouvez personnaliser tous les seuils en ouvrant le fichier `config.json` av
 
 ```json
 {
-  "ping_targets": ["1.1.1.1", "8.8.8.8", "1.0.0.1"],
+  "ping_targets": ["1.1.1.1", "1.0.0.1"],
   "ping_timeout_ms": 1000,
   "check_interval_seconds": 5,
   "history_window_size": 30,
