@@ -55,7 +55,7 @@ namespace NetworkWatchdog
         public string AntiBootloopMessage { get; set; } = "Protection active (20 min)";
 
         // Version & Mises à jour
-        public string AppVersion { get; set; } = "1.0.1";
+        public string AppVersion { get; set; } = "1.0.2";
         public bool UpdateAvailable { get; set; }
         public string LatestVersion { get; set; } = "";
         public string ReleaseUrl { get; set; } = "https://github.com/koops61/network-watchdog/releases";
@@ -96,7 +96,7 @@ namespace NetworkWatchdog
         private bool _watchdogEnabled = true;
         private string _lastKnownAdapterName = "Ethernet";
 
-        public const string AppVersion = "1.0.1";
+        public const string AppVersion = "1.0.2";
         public const string GitHubRepo = "koops61/network-watchdog";
 
         private bool _updateAvailable = false;
